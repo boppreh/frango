@@ -56,6 +56,14 @@ class User(object):
         r.reseed(seed)
         return RsaKeypair(2048, r.pseudo_random_data)
 
+    def _get_revocation_key(self, domain_unicode, nonce):
+        """
+        Generates a revocation key for a given domain.
+        """
+        domain_bytes = domain_unicode.encode('utf-8')
+        secret = nonce + domain_bytes + self.master_key
+        return sha256(secret)
+
 
 user = User()
 identity = user.build_identity('google.com')
