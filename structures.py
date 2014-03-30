@@ -1,6 +1,3 @@
-import sys
-sys.path.append('../simplecrypto')
-
 import json
 from collections import namedtuple
 from simplecrypto.key import RsaPublicKey
