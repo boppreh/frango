@@ -33,21 +33,20 @@ class User(object):
             identity = domainOrIdentity
             domain = identity.domain
             if identity not in self.keys_by_domain:
-                self.load_identity(identity)
+                self.load_identity(domain, identity.nonce)
         else:
             domain = domainOrIdentity
             assert self.keys_by_domain[domain]
 
         return base64(self.keys_by_domain[domain].sign(message))
 
-    def load_identity(self, identity):
+    def load_identity(self, domain, nonce):
         """
         Re-generates the private key for the identity domain and caches
         it in this User instance.
         """
-        nonce = from_base64(identity.nonce)
-        domain = identity.domain
-        self.keys_by_domain[domain] = self._generate_keypair(nonce, domain)
+        nonce_bytes = from_base64(nonce)
+        self.keys_by_domain[domain] = self._generate_keypair(nonce_bytes, domain)
 
     def get_subject(self, domain):
         """
@@ -90,7 +89,7 @@ class User(object):
                         revocation_key_hash,
                         signature)
 
-    def _generate_keypair(self, nonce, domain):
+    def _generate_keypair(self, nonce_bytes, domain):
         """
         Generates a deterministic RSA keypair from a random number generator
         seed in bytes.
@@ -100,7 +99,7 @@ class User(object):
         # class of the PyCryto package (this is not the original class name,
         # check the import).
         r = FortunaPrng()
-        r.reseed(nonce + domain_bytes + self.master_key)
+        r.reseed(nonce_bytes + domain_bytes + self.master_key)
         return RsaKeypair(User.RSA_KEY_BIT_LENGTH, r.pseudo_random_data)
 
     def _get_revocation_key(self, domain, nonce):
@@ -189,7 +188,7 @@ if __name__ == '__main__':
     # Ensure private keys re-derived from identities are exactly the same
     # as the ones generated in the first place.
     user_private_key = user.keys_by_domain['example.com'].serialize()
-    user.load_identity(i)
+    user.load_identity(i.domain, i.nonce)
     assert user_private_key == user.keys_by_domain['example.com'].serialize()
 
     # Make sure it is properly signed.
