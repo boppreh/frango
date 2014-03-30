@@ -7,7 +7,7 @@ import json
 
 from simplecrypto.formats import from_hex, hex, base64, from_base64
 from simplecrypto.hashes import sha256
-from simplecrypto.key import RsaKeypair
+from simplecrypto.key import RsaKeypair, RsaPublicKey
 from simplecrypto.random import random as crypto_random
 from Crypto.Random.Fortuna.FortunaGenerator import AESGenerator as FortunaPrng
 
@@ -33,6 +33,23 @@ class Identity(namedtuple('Identity', ['subject', 'domain', 'nonce', 'public_key
         """
         return self.to_json()
 
+    def build_public_key(self):
+        """
+        Returns a RsaPublicKey instance extracted from this identity.
+        """
+        return RsaPublicKey(self.public_key)
+
+    def verify(self):
+        """
+        Verifies this identity signature matches the public key declared.
+        """
+        self_dict = self._asdict()
+        self_dict['signature'] = ''
+        signatureless_identity = Identity(**self_dict)
+        str_identity = signatureless_identity.to_json()
+        public_key = self.build_public_key()
+        return public_key.verify(str_identity, from_base64(self.signature))
+
     @staticmethod
     def from_json(dump):
         """
@@ -53,7 +70,7 @@ class User(object):
         Creates a new user. If not given a master key, a new random one
         is generated.
         """
-        self.master_key = master_key or crypto_random(User.MASTER_KEY_BIT_LENGTH / 8)
+        self.master_key = master_key or crypto_random(User.MASTER_KEY_BIT_LENGTH // 8)
         self.keys_by_domain = {}
 
     def load_identity(self, identity):
@@ -90,13 +107,21 @@ class User(object):
         subject = self.get_subject(domain)
         revocation_key_hash = sha256(self._get_revocation_key(domain, nonce))
 
+        signatureless_identity = Identity(subject,
+                                          domain,
+                                          base64(nonce),
+                                          public_key,
+                                          revocation_key_hash,
+                                          '')
+
+        signature = base64(keypair.sign(signatureless_identity.to_json()))
+
         return Identity(subject,
                         domain,
                         base64(nonce),
                         public_key,
                         revocation_key_hash,
-                        # TODO: signature
-                        None)
+                        signature)
 
     def _generate_keypair(self, nonce, domain):
         """
@@ -160,8 +185,12 @@ if __name__ == '__main__':
     user.load_identity(i)
     assert user_private_key == user.keys_by_domain['example.com'].serialize()
 
-    # Avoid dumb mistakes that include the master key in the identity.
+    # Make sure it is properly signed.
+    assert i.signature
+    assert i.verify()
+
     str_identity = i.to_json()
+    # Avoid dumb mistakes that include the master key in the identity.
     assert sha256(user.master_key) not in str_identity
     assert base64(user.master_key) not in str_identity
     assert hex(user.master_key) not in str_identity
