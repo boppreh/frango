@@ -1,6 +1,4 @@
 import sys
-sys.path.append('../simplecrypto')
-
 
 from collections import namedtuple
 import json
