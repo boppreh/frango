@@ -26,7 +26,7 @@ class Service(object):
         Creates and remembers a new session nonce to be used to link an
         identity to a session.
         """
-        nonce = crypto_random(SESSION_NONCE_BIT_LENGTH // 8)
+        nonce = crypto_random(Service.SESSION_NONCE_BIT_LENGTH // 8)
         self.session_nonces.add(nonce)
         return nonce
 
@@ -93,7 +93,7 @@ if __name__ == '__main__':
     assert session_nonce in service.session_nonces
 
     signed_nonce = user.sign(session_nonce, identity)
-    service.session_login(identity.subject, session_none, signed_nonce)
+    service.session_login(identity.subject, session_nonce, signed_nonce)
     assert session_nonce not in service.session_nonces
     assert session_nonce in service.identity_by_session
 
