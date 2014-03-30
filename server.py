@@ -66,7 +66,7 @@ class Service(object):
         identity = self.identities_by_subject[subject]
         public_key = identity.build_public_key()
         assert public_key.verify(session_nonce, from_base64(signed_session_nonce))
-        
+
         self.session_nonces.remove(session_nonce)
         self.identity_by_session[session_nonce] = identity
 
@@ -76,3 +76,26 @@ class Service(object):
         """
         assert session_nonce in self.identity_by_session
         del self.identity_by_session[session_nonce]
+
+if __name__ == '__main__':
+    from simplecrypto.key import RsaKeypair
+    from client import User
+
+    service = Service('example.com')
+
+    user = User()
+    identity = user.build_identity(service.domain)
+
+    service.register_identity(identity)
+    assert service.fetch_identity_nonce(identity.subject) == identity.nonce
+
+    session_nonce = service.make_session_nonce()
+    assert session_nonce in service.session_nonces
+
+    signed_nonce = user.sign(session_nonce, identity)
+    service.session_login(identity.subject, session_none, signed_nonce)
+    assert session_nonce not in service.session_nonces
+    assert session_nonce in service.identity_by_session
+
+    service.session_logout(session_nonce)
+    assert session_nonce not in service.identity_by_session
