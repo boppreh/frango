@@ -73,6 +73,21 @@ class User(object):
         self.master_key = master_key or crypto_random(User.MASTER_KEY_BIT_LENGTH // 8)
         self.keys_by_domain = {}
 
+    def sign(self, message, domainOrIdentity):
+        """
+        Signs a message with the key from an identity. If only a domain is
+        given, the key must have been loaded previously.
+        """
+        if isinstance(domainOrIdentity, Identity):
+            identity = domainOrIdentity
+            domain = identity.domain
+            self.load_identity(identity)
+        else:
+            domain = domainOrIdentity
+            assert self.keys_by_domain[domain]
+
+        return base64(self.keys_by_domain[domain].sign(message))
+
     def load_identity(self, identity):
         """
         Re-generates the private key for the identity domain and caches

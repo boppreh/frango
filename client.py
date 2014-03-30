@@ -13,7 +13,14 @@ class OfflineClient(object):
                 self.user = User()
                 f.write(self.user.master_key)
 
-        self.identities_by_domain = {}
+    def cached_auth(self, domain, session_nonce):
+        """
+        Returns subject and signed session nonce, used for logging in in 
+        services with identities known to be present in the cache.
+        """
+        subject = self.user.get_subject(domain)
+        signature = base64(self.user.self.keys_by_domain[domain].sign(session_nonce))
+        return subject, signature
 
 
 class OnlineClient(OfflineClient):
