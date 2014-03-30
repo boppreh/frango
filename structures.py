@@ -81,7 +81,8 @@ class User(object):
         if isinstance(domainOrIdentity, Identity):
             identity = domainOrIdentity
             domain = identity.domain
-            self.load_identity(identity)
+            if identity not in self.keys_by_domain:
+                self.load_identity(identity)
         else:
             domain = domainOrIdentity
             assert self.keys_by_domain[domain]
