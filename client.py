@@ -1,11 +1,8 @@
 import os
-import requests
 import json
 from structures import User, Identity
 
-class Client(object):
-    IDENTITY_SERVICE_FORMAT = 'http://{}:8080/identity/{}'
-
+class OfflineClient(object):
     def __init__(self, backup_path):
         if os.path.isfile(backup_path):
             with open(backup_path, 'rb') as f:
@@ -17,6 +14,10 @@ class Client(object):
                 f.write(self.user.master_key)
 
         self.identities_by_domain = {}
+
+
+class OnlineClient(OfflineClient):
+    IDENTITY_SERVICE_FORMAT = 'http://{}:8080/identity/{}'
 
     def _get_service_url(self, domain, subject):
         return Client.IDENTITY_SERVICE_FORMAT.format(domain, subject)
@@ -45,3 +46,6 @@ class Client(object):
     def authenticate(self, domain):
         identity = self.identities_by_domain[domain]
         self._get_service_url(domain, identity.subject)
+
+if __name__ == '__main__':
+    pass
