@@ -39,7 +39,7 @@ class Service(object):
         assert identity.verify()
         self.identities_by_subject[identity.subject]  = identity
 
-    def revoke_and_replace(self, old_subject, revocation_key, new_identity=None):
+    def revoke(self, old_subject, revocation_key, new_identity=None):
         """
         Revokes an old identity, optionally replacing it with a new one in
         single step.

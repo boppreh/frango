@@ -109,12 +109,12 @@ class User(object):
         domain_bytes = domain.encode('utf-8')
         return sha256(nonce + domain_bytes + self.master_key)
 
-    def revoke(self, identity):
+    def revoke(self, domain, nonce):
         """
         Generates a revocation key for a given identity.
         """
-        nonce_bytes = from_base64(identity.nonce)
-        return self._get_revocation_key(identity.domain, nonce_bytes)
+        nonce_bytes = from_base64(nonce)
+        return self._get_revocation_key(domain, nonce_bytes)
 
 class OfflineClient(object):
     def __init__(self, backup_path):
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     i = user.build_identity('example.com')
     assert i.domain == 'example.com'
     assert i.subject == user.get_subject('example.com')
-    assert sha256(user.revoke(i)) == i.revocation_key_hash
+    assert sha256(user.revoke(i.domain, i.nonce)) == i.revocation_key_hash
     user_public_key = user.keys_by_domain['example.com'].publickey.serialize().decode('utf-8')
     assert user_public_key == i.public_key
     
