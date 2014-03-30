@@ -18,7 +18,7 @@ nonce = service.make_session_nonce()
 # Signs the nonce...
 signed_nonce = user.sign(nonce, 'example.org')
 # And sends this info back to the service.
-service.session_login(nonce, signed_nonce, identity.subject)
+service.session_login(identity.subject, nonce, signed_nonce)
 
 # Server now nows which user is behind that session. User is logged in.
 # Client and server can talk with TLS, using the server's cert and the user's
@@ -43,12 +43,11 @@ identity_nonce = service.fetch_identity_nonce(subject)
 # user.load_identity('example.org', nonce)
 # But whoever got the phone now has our keys, so we better revoke them.
 revocation_key = new_user.revoke('example.org', identity_nonce)
-new_identity = user.build_identity('example.org')
-# We did not change the master key, so the subject remains the same.
-service.revoke(subject, subject, revocation_key, new_identity)
+new_identity = new_user.build_identity('example.org')
+service.revoke(subject, revocation_key, new_identity)
 
 # We now have a brand new identity to use:
 nonce = service.make_session_nonce()
-signed_nonce = user.sign(nonce, 'example.org')
-service.session_login(nonce, signed_nonce, identity.subject)
+signed_nonce = new_user.sign(nonce, 'example.org')
+service.session_login(new_identity.subject, nonce, signed_nonce)
 service.session_logout(nonce)
