@@ -83,12 +83,7 @@ class User(object):
 
         signature = base64(keypair.sign(signatureless_identity.to_json()))
 
-        return Identity(subject,
-                        domain,
-                        base64(nonce),
-                        public_key,
-                        revocation_key_hash,
-                        signature)
+        return signatureless_identity._replace(signature=signature)
 
     def _generate_keypair(self, nonce_bytes, domain):
         """
