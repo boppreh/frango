@@ -1,8 +1,8 @@
-import server
-import client
+from service import Service
+from user import User
 
-service = server.Service('example.org')
-user = client.User()
+service = Service('example.org')
+user = User()
 
 # User backs up master key.
 master_key_backup = user.master_key
@@ -32,7 +32,7 @@ service.session_logout(nonce)
 user = None
 
 # Thankfully we have the backup.
-new_user = client.User(master_key_backup)
+new_user = User(master_key_backup)
 
 # Problem: the identity created was not backed up.
 # Solution: ask the server.

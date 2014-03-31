@@ -13,17 +13,13 @@ class Identity(namedtuple('Identity', ['subject', 'domain', 'nonce', 'public_key
     Public Key -> rsa(random(master-key + domain + nonce))
     Revocation Key Hash -> hash(hash(nonce + domain + master key))
     """
+    __slots__ = ()
+
     def to_json(self):
         """
         Converts this identity to a JSON string.
         """
-        return json.dumps(self._asdict())
-
-    def __repr__(self):
-        """
-        Returns the JSON representation of this identity.
-        """
-        return self.to_json()
+        return json.dumps(vars(self))
 
     def build_public_key(self):
         """
@@ -35,7 +31,7 @@ class Identity(namedtuple('Identity', ['subject', 'domain', 'nonce', 'public_key
         """
         Verifies this identity signature matches the public key declared.
         """
-        self_dict = self._asdict()
+        self_dict = vars(self)
         self_dict['signature'] = ''
         signatureless_identity = Identity(**self_dict)
         str_identity = signatureless_identity.to_json()

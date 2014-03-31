@@ -1,9 +1,9 @@
-from structures import Identity
-
 import json
 from simplecrypto.formats import from_base64, base64
 from simplecrypto.hashes import sha256
 from simplecrypto.random import random as crypto_random
+
+from identity import Identity
 
 class Service(object):
     """
@@ -79,7 +79,7 @@ class Service(object):
 
 if __name__ == '__main__':
     from simplecrypto.key import RsaKeypair
-    from client import User
+    from user import User
 
     service = Service('example.com')
 
