@@ -112,15 +112,15 @@ td {
     <label>Website domain: <input type="text" id="domain" oninput="updateDomain();"></label>
     <label class="internal">Subject: <input type="text" id="subject"></label>
     <label class="internal">Salt: <input type="text" id="salt" autocomplete="off"></label>
-    <label class="internal">Keypair seed/revoker: <input type="text" id="revoker" autocomplete="off"></label>
+    <label class="internal">Revocation key: <input type="text" id="revocation-key" autocomplete="off"></label>
     <label class="internal">Public key: <input type="text" id="public-key" autocomplete="off"></label>
     <label class="internal">Private key: <input type="text" id="private-key" autocomplete="off"></label>
     <div class="section">
     <h3>Registration</h3>
-    Creates a salt, derives seed/revoker and then the key pair.
+    Creates a salt, derives seed, then revocation key and key pair.
     <button onclick="register();">Register</button>
     <p>Send this request to register:</p>
-    <div id="registration" class="post">POST https://<b>example.com</b>/frango?<b>subject</b>=<i>?</i>&amp;<b>salt</b>=<i>?</i>&amp;<b>pubkey</b>=<i>?</i></div>
+    <div id="registration" class="post">POST https://<b>example.com</b>/frango?<b>subject</b>=<i>?</i>&amp;<b>salt</b>=<i>?</i>&amp;<b>pubkey</b>=<i>?</i>&amp;<b>revocationkeyhash</b>=<i>?</i></div>
     </div>
     <div class="section">
     <h3>Authentication</h3>
@@ -133,10 +133,10 @@ td {
     </div>
     <div class="section">
     <h3>Revocation</h3>
-    Use revoker to prove identity and generate a new salt, new revoker, and new key pair.
+    Use revocation key to prove identity and generate a new salt, new revocation key, and new key pair.
     <button onclick="revoke();">Revoke</button>
     <p>Send this request to revoke:</p>
-    <div id="revocation" class="post">POST https://<b>example.com</b>/frango?<b>subject</b>=<i>?</i>&amp;<b>revoker</b>=<i>?</i>&amp;<b>newsalt</b>=<i>?</i>&amp;<b>newpubkey</b>=<i>?</i>
+    <div id="revocation" class="post">POST https://<b>example.com</b>/frango?<b>subject</b>=<i>?</i>&amp;<b>revocationkey</b>=<i>?</i>&amp;<b>newsalt</b>=<i>?</i>&amp;<b>newpubkey</b>=<i>?</i>&amp;<b>newrevocationkeyhash</b>=<i>?</i>
     </div>
     </div>
     </div>
@@ -148,7 +148,7 @@ td {
     <input type="text" id="domain-server" style="width: 100%;" value="example.com">
     <h3>Users</h3>
     <table id="user-table">
-    <tr><td><i>Subject</i></td><td><i>Seed</i></td><td><i>Public key</i></td></tr>
+    <tr><td><i>Subject</i></td><td><i>Salt</i></td><td><i>Public key</i></td><td><i>Revocation key hash</i></td></tr>
     </table>
     <h3>Sessions</h3>
     <table id="session-table">
@@ -231,7 +231,7 @@ function subject() { return decodeBase64(get("subject")); }
 function session() { return decodeBase64(get("session")); }
 function signature() { return decodeBase64(get("signature")); }
 function salt() { return decodeBase64(get("salt")); }
-function revoker() { return decodeBase64(get("revoker")); }
+function revocationKey() { return decodeBase64(get("revocation-key")); }
 
 function updateDomain() {
     if (get("domain") == "") {
@@ -248,8 +248,8 @@ function updateDomain() {
         var row = rows[i];
         if (row.children[0].innerHTML === get("domain")) {
             set("salt", row.children[1].innerHTML);
-            var revoker = nacl.hash(concat(masterKey(), concat(domain(), salt()))).slice(32);
-            set("revoker", encodeBase64(revoker));
+            var revocationKey = nacl.hash(nacl.hash(concat(masterKey(), concat(domain(), salt()))));
+            set("revocation-key", encodeBase64(revocationKey));
             var keypair = makeKeypair();
             set("public-key", encodeBase64(keypair.publicKey));
             set("private-key", encodeBase64(keypair.secretKey));
@@ -257,20 +257,20 @@ function updateDomain() {
         }
     }
     set("salt", "Unknown. Register first or recover from server.");
-    set("revoker", "hash(master key || domain || salt).");
+    set("revocation-key", "hash(master key || domain || salt).");
     set("public-key", "pubkey(hash(seed))");
     set("private-key", "privkey(hash(seed))");
 }
 
 function authenticate() {
     var keyPair = makeKeypair();
-    var signature = nacl.sign(session(), keyPair.secretKey);
+    var signature = nacl.sign.detached(session(), keyPair.secretKey);
     set("signature", encodeBase64(signature));
-    set("registration", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>session</b>=<i>" + get("session")+"</i>&amp;<b>signature</b>=<i>"+get("signature")+"</i>");
+    set("authentication", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>session</b>=<i>" + get("session")+"</i>&amp;<b>signature</b>=<i>"+get("signature")+"</i>");
 }
 
 function makeKeypair() {
-    return nacl.sign.keyPair.fromSeed(nacl.hash(revoker()).slice(32));
+    return nacl.sign.keyPair.fromSeed(nacl.hash(concat(masterKey(), concat(domain(), salt()))).slice(32));
 }
 
 function backup() {
@@ -331,15 +331,15 @@ function register() {
     updateDomain();
 
     var keypair = makeKeypair();
-    set("registration", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>salt</b>=<i>" + get("salt")+"</i>&amp;<b>pubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>");
+    set("registration", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>salt</b>=<i>" + get("salt")+"</i>&amp;<b>pubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>&amp;<b>revocationkeyhash</b>=<i>"+ encodeBase64(nacl.hash(revocationKey())) +"</i>");
 }
 
 function revoke() {
     var oldSalt = salt();
-    var oldRevoker = revoker();
+    var oldRevocationKey = revocationKey();
     register();
     var keypair = makeKeypair();
-    set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revoker</b>=<i>" + get("revoker")+ "</i>&amp;<b>salt</b>=<i>" + get("salt")+"</i>&amp;<b>pubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>");
+    set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revocationkey</b>=<i>" + get("revocation-key")+ "</i>&amp;<b>salt</b>=<i>" + get("salt")+"</i>&amp;<b>pubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>&amp;<b>revocationkeyhash</b>=<i>"+ encodeBase64(nacl.hash(revocationKey())) +"</i>");
 }
 
 window.onload = function() {
