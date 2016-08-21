@@ -1,0 +1,353 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width" />
+        <title>Example client for Frango protocol</title>
+        <style>
+body {
+    margin: 0;
+    padding: 0;
+    font: 14px/150% Georgia, Times, 'Times New Roman', serif;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.051);
+    color: #444;
+    line-height: 2em;
+}
+h3 {
+    margin: 5px;
+}
+label {
+    display: flex;
+}
+label input {
+    margin: 0px 0px 5px 5px;
+    margin-bottom: 5px;
+    flex: 2;
+    color: inherit;
+}
+button {
+    width: 100%;
+}
+.section {
+    border: 1px solid;
+    margin: 20px 0px;
+    padding: 5px 5px;
+}
+.internal {
+    color: #999;
+}
+
+#main {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: space-around;
+}
+.side {
+    min-width: 400px;
+    margin: 0px 20px;
+    width: 30%;
+}
+.post {
+    font: 14px monospace;
+    word-wrap: break-word;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #999;
+    padding: 2px 8px;
+}
+
+#lightbox{
+    visibility: hidden;
+    position: absolute;
+    background: white;
+    z-index: 100;
+    padding: 20px;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.dimmer{
+    background: #000;
+    position: absolute;
+    opacity: .5;
+    top: 0;
+    z-index:99;
+    width: 100%;
+    height: 100%;
+}
+        </style>
+
+    </head>
+    <body>
+    <div id="lightbox">
+        <h1>Backup</h1>
+        <p>Print this QR code:</p>
+        <img id="qrcode" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=Example">
+        <hr>
+        <p>Or write down this string:</p>
+        <b><span id="master-key-backup" style="font: 20px monospace"></span></b>
+    </div>
+    <div id="main">
+    <div class="side">
+    <h1>Client</h1>
+    <h2>Stored values</h2>
+    <h3>Master key</h3>
+    <input type="text" id="master-key" style="width: 80%"><button onclick="backup()" style="width: 18%; display: inline">Backup</button>
+    <h3>Cache table</h3>
+    <table id="table-salt">
+    <tr><td><i>Domain</i></td><td><i>Salt</i></td></tr>
+    </table>
+    <button onclick="addSalt();">Add salt recovered from server</button>
+    <i>(plus cached private keys, subjects, and server names from EV certificates)</i>
+    <hr>
+    <h2>Interaction</h2>
+    <label>Website domain: <input type="text" id="domain" oninput="updateDomain();"></label>
+    <label class="internal">Subject: <input type="text" id="subject"></label>
+    <label class="internal">Salt: <input type="text" id="salt" autocomplete="off"></label>
+    <label class="internal">Keypair seed/revoker: <input type="text" id="revoker" autocomplete="off"></label>
+    <label class="internal">Public key: <input type="text" id="public-key" autocomplete="off"></label>
+    <label class="internal">Private key: <input type="text" id="private-key" autocomplete="off"></label>
+    <div class="section">
+    <h3>Registration</h3>
+    Creates a salt, derives seed/revoker and then the key pair.
+    <button onclick="register();">Register</button>
+    <p>Send this request to register:</p>
+    <div id="registration" class="post">POST https://<b>example.com</b>/frango?<b>subject</b>=<i>?</i>&amp;<b>salt</b>=<i>?</i>&amp;<b>pubkey</b>=<i>?</i></div>
+    </div>
+    <div class="section">
+    <h3>Authentication</h3>
+    Identify ourselves and prove key possession by signing the session id.
+    <label>Session id: <input type="text" id="session"></label>
+    <button onclick="authenticate();">Authenticate</button>
+    <label class="internal">Signature: <input type="text" id="signature" autocomplete="off"></label>
+    <p>Send this request to authenticate:</p>
+    <div id="authentication" class="post">POST https://<b>example.com</b>/frango?<b>subject</b>=<i>?</i>&amp;<b>session</b>=<i>?</i>&amp;<b>signature</b>=<i>?</i></div>
+    </div>
+    <div class="section">
+    <h3>Revocation</h3>
+    Use revoker to prove identity and generate a new salt, new revoker, and new key pair.
+    <button onclick="revoke();">Revoke</button>
+    <p>Send this request to revoke:</p>
+    <div id="revocation" class="post">POST https://<b>example.com</b>/frango?<b>subject</b>=<i>?</i>&amp;<b>revoker</b>=<i>?</i>&amp;<b>newsalt</b>=<i>?</i>&amp;<b>newpubkey</b>=<i>?</i>
+    </div>
+    </div>
+    </div>
+    <p></p>
+    <div class="side">
+    <h1>Server</h1>
+    <h2>Stored values</h2>
+    <h3>Domain</h3>
+    <input type="text" id="domain-server" style="width: 100%;" value="example.com">
+    <h3>Users</h3>
+    <table id="user-table">
+    <tr><td><i>Subject</i></td><td><i>Seed</i></td><td><i>Public key</i></td></tr>
+    </table>
+    <h3>Sessions</h3>
+    <table id="session-table">
+    <tr><td><i>Id</i></td><td><i>Subejct</i></td></tr>
+    </table>
+    <hr>
+    <h2>Interaction</h2>
+    From request:
+    <textarea style="width: 100%">POST https://example.com/frango?subject=?</textarea>
+    or enter values
+    
+    <label>Subject: <input type="text" id="subject-server"></label>
+    <label>Public key: <input type="text" id="public-key-server"></label>
+    <div class="section">
+    <h3>Registration</h3>
+    <label>Salt: <input type="text" id="salt-server"></label>
+    <button onclick="registerServer();">Register</button>
+    </div>
+    <div class="section">
+    <h3>Authentication</h3>
+    <label>Session id: <input type="text" id="session-server"></label>
+    <label>Signature: <input type="text" id="signature-server"></label>
+    <button onclick="authenticateServer();">Authenticate</button>
+    </div>
+    <div class="section">
+    <h3>Revocation</h3>
+    <label>Revoker: <input type="text" id="revoker-server"></label>
+    <label>New public key: <input type="text" id="new-public-key-server"></label>
+    <label>New salt: <input type="text" id="new-salt-server"></label>
+    <button onclick="revokeServer();">Revoke</button>
+    </div>
+    </div>
+
+    </div>
+
+    <script src="nacl-fast.min.js"></script>
+    <script>
+"use strict";
+
+function set(elementId, value) {
+    var element = document.getElementById(elementId);
+    if (element.value !== undefined) {
+        element.value = value;
+    } else {
+        element.innerHTML = value;
+    }
+}
+
+function get(elementId) {
+    var element = document.getElementById(elementId);
+    if (element.value !== undefined) {
+        return element.value;
+    } else {
+        return element.innerHTML;
+    }
+}
+
+function concat(a, b) {
+    var c = new Uint8Array(a.length + b.length);
+    c.set(a);
+    c.set(b, a.length);
+    return c;
+}
+
+function encodeUTF8(string) {
+    return new TextEncoder("utf-8").encode(string);
+}
+
+function encodeBase64(bytes) {
+    return btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function decodeBase64(string) {
+    return new Uint8Array(atob(string.replace(/-/g, "+").replace(/_/g, "/")).split("").map(function(c) { return c.charCodeAt(0); }));
+}
+
+function masterKey() { return decodeBase64(get("master-key")); }
+function domain() { return encodeUTF8(get("domain")); }
+function subject() { return decodeBase64(get("subject")); }
+function session() { return decodeBase64(get("session")); }
+function signature() { return decodeBase64(get("signature")); }
+function salt() { return decodeBase64(get("salt")); }
+function revoker() { return decodeBase64(get("revoker")); }
+
+function updateDomain() {
+    if (get("domain") == "") {
+        set("subject", "");
+        set("salt", "");
+        return;
+    }
+    var subject = nacl.hash(concat(masterKey(), domain()));
+    set("subject", encodeBase64(subject));
+
+    var tableSalt = document.getElementById("table-salt");
+    var rows = tableSalt.children;
+    for (var i = 1; i < rows.length; i++) {
+        var row = rows[i];
+        if (row.children[0].innerHTML === get("domain")) {
+            set("salt", row.children[1].innerHTML);
+            var revoker = nacl.hash(concat(masterKey(), concat(domain(), salt()))).slice(32);
+            set("revoker", encodeBase64(revoker));
+            var keypair = makeKeypair();
+            set("public-key", encodeBase64(keypair.publicKey));
+            set("private-key", encodeBase64(keypair.secretKey));
+            return;
+        }
+    }
+    set("salt", "Unknown. Register first or recover from server.");
+    set("revoker", "hash(master key || domain || salt).");
+    set("public-key", "pubkey(hash(seed))");
+    set("private-key", "privkey(hash(seed))");
+}
+
+function authenticate() {
+    var keyPair = makeKeypair();
+    var signature = nacl.sign(session(), keyPair.secretKey);
+    set("signature", encodeBase64(signature));
+    set("registration", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>session</b>=<i>" + get("session")+"</i>&amp;<b>signature</b>=<i>"+get("signature")+"</i>");
+}
+
+function makeKeypair() {
+    return nacl.sign.keyPair.fromSeed(nacl.hash(revoker()).slice(32));
+}
+
+function backup() {
+    set("master-key-backup", get("master-key"));
+    var lightbox = document.getElementById("lightbox");
+    document.getElementById("qrcode").src = "";
+    document.getElementById("qrcode").src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + get("master-key");
+    var dimmer = document.createElement("div");
+    dimmer.className = 'dimmer';
+    dimmer.onclick = function(){
+        document.body.removeChild(this);   
+        lightbox.style.visibility = 'hidden';
+    }
+    document.body.appendChild(dimmer);
+    lightbox.style.visibility = 'visible';
+}
+
+function addSalt() {
+    var domain = prompt("Enter domain:");
+    var salt = prompt("Enter salt stored by server:");
+    var tableSalt = document.getElementById("table-salt");
+    var row = document.createElement("tr");
+    var col1 = document.createElement("td");
+    col1.innerHTML = domain;
+    var col2 = document.createElement("td");
+    col2.innerHTML = salt;
+    row.appendChild(col1);
+    row.appendChild(col2);
+    tableSalt.appendChild(row);
+}
+
+function register() {
+    var salt = nacl.randomBytes(32);
+    set("salt", encodeBase64(salt));
+
+    var tableSalt = document.getElementById("table-salt");
+
+    function updateSalt() {
+        var rows = tableSalt.children;
+        for (var i = 1; i < rows.length; i++) {
+            var row = rows[i];
+            if (row.children[0].innerHTML === get("domain")) {
+                row.children[1].innerHTML = get("salt");
+                return;
+            }
+        }
+        var row = document.createElement("tr");
+        var col1 = document.createElement("td");
+        col1.innerHTML = get("domain");
+        var col2 = document.createElement("td");
+        col2.innerHTML = get("salt");
+        row.appendChild(col1);
+        row.appendChild(col2);
+        tableSalt.appendChild(row);
+    }
+    updateSalt();
+
+    updateDomain();
+
+    var keypair = makeKeypair();
+    set("registration", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>salt</b>=<i>" + get("salt")+"</i>&amp;<b>pubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>");
+}
+
+function revoke() {
+    var oldSalt = salt();
+    var oldRevoker = revoker();
+    register();
+    var keypair = makeKeypair();
+    set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revoker</b>=<i>" + get("revoker")+ "</i>&amp;<b>salt</b>=<i>" + get("salt")+"</i>&amp;<b>pubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>");
+}
+
+window.onload = function() {
+    var masterKey = nacl.randomBytes(32); // nacl.sign.seedLength == 32
+    set("master-key", encodeBase64(masterKey));
+    updateDomain()
+};
+    </script>
+
+    </body>
+</html>
