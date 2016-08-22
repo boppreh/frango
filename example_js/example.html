@@ -228,6 +228,46 @@ function decodeBase64(string) {
     return new Uint8Array(atob(string.replace(/-/g, "+").replace(/_/g, "/")).split("").map(function(c) { return c.charCodeAt(0); }));
 }
 
+function addRow(tableId, values) {
+    var table = document.getElementById(tableId);
+    var row = document.createElement("tr");
+    for (var i = 0; i < values.length; i++) {
+        var col = document.createElement("td");
+        col.innerHTML = values[i];
+        row.appendChild(col);
+    }
+    table.appendChild(row);
+}
+
+function getRow(tableId, firstValue) {
+    var table = document.getElementById(tableId);
+    var rows = table.children;
+    for (var i = 1; i < rows.length; i++) {
+        var row = rows[i];
+        if (row.children[0].innerHTML === firstValue) {
+            return Array.prototype.slice.call(row.children, 0);
+        }
+    }
+    throw new Error("no such row found");
+}
+
+function changeOrAddRow(tableId, firstValue, replacementValues) {
+    var table = document.getElementById(tableId);
+    var rows = table.children;
+    for (var i = 1; i < rows.length; i++) {
+        var row = rows[i];
+        var children = row.children;
+        if (children[0].innerHTML === firstValue) {
+            for (var j = 0; j < replacementValues.length; j++) {
+                children[j].innerHTML = replacementValues[j];
+            }
+            return false;
+        }
+    }
+    addRow(tableId, replacementValues);
+    return true;
+}
+
 function masterKey() { return decodeBase64(get("master-key")); }
 function domain() { return encodeUTF8(get("domain")); }
 function subject() { return decodeBase64(get("subject")); }
@@ -245,25 +285,22 @@ function updateDomain() {
     var subject = nacl.hash(concat(masterKey(), domain()));
     set("subject", encodeBase64(subject));
 
-    var tableSalt = document.getElementById("table-salt");
-    var rows = tableSalt.children;
-    for (var i = 1; i < rows.length; i++) {
-        var row = rows[i];
-        if (row.children[0].innerHTML === get("domain")) {
-            set("salt", row.children[1].innerHTML);
-            var revocationKey = nacl.hash(nacl.hash(concat(masterKey(), concat(domain(), salt()))));
-            set("revocation-key", encodeBase64(revocationKey));
-            var keypair = makeKeypair();
-            set("public-key", encodeBase64(keypair.publicKey));
-            set("private-key", encodeBase64(keypair.secretKey));
-            return;
-        }
+    try {
+        var row = getRow("table-salt", get("domain"));
+        set("salt", row[1].innerHTML);
+        var revocationKey = nacl.hash(nacl.hash(concat(masterKey(), concat(domain(), salt()))));
+        set("revocation-key", encodeBase64(revocationKey));
+        var keypair = makeKeypair();
+        set("public-key", encodeBase64(keypair.publicKey));
+        set("private-key", encodeBase64(keypair.secretKey));
+    } catch (e) {
+        set("salt", "Unknown. Register first or recover from server.");
+        set("revocation-key", "hash(master key || domain || salt).");
+        set("public-key", "pubkey(hash(seed))");
+        set("private-key", "privkey(hash(seed))");
     }
-    set("salt", "Unknown. Register first or recover from server.");
-    set("revocation-key", "hash(master key || domain || salt).");
-    set("public-key", "pubkey(hash(seed))");
-    set("private-key", "privkey(hash(seed))");
 }
+    
 
 function authenticate() {
     var keyPair = makeKeypair();
@@ -294,42 +331,14 @@ function backup() {
 function addSalt() {
     var domain = prompt("Enter domain:");
     var salt = prompt("Enter salt stored by server:");
-    var tableSalt = document.getElementById("table-salt");
-    var row = document.createElement("tr");
-    var col1 = document.createElement("td");
-    col1.innerHTML = domain;
-    var col2 = document.createElement("td");
-    col2.innerHTML = salt;
-    row.appendChild(col1);
-    row.appendChild(col2);
-    tableSalt.appendChild(row);
+    addRow("table-salt", [domain, salt])
 }
 
 function register() {
     var salt = nacl.randomBytes(32);
     set("salt", encodeBase64(salt));
 
-    var tableSalt = document.getElementById("table-salt");
-
-    function updateSalt() {
-        var rows = tableSalt.children;
-        for (var i = 1; i < rows.length; i++) {
-            var row = rows[i];
-            if (row.children[0].innerHTML === get("domain")) {
-                row.children[1].innerHTML = get("salt");
-                return;
-            }
-        }
-        var row = document.createElement("tr");
-        var col1 = document.createElement("td");
-        col1.innerHTML = get("domain");
-        var col2 = document.createElement("td");
-        col2.innerHTML = get("salt");
-        row.appendChild(col1);
-        row.appendChild(col2);
-        tableSalt.appendChild(row);
-    }
-    updateSalt();
+    changeOrAddRow("table-salt", get("domain"), [get("domain"), get("salt")]);
 
     updateDomain();
 
