@@ -45,7 +45,7 @@ button {
 .side {
     min-width: 400px;
     margin: 0px 20px;
-    width: 30%;
+    width: 40%;
 }
 .post {
     font: 14px monospace;
@@ -156,15 +156,17 @@ td {
     </table>
     <hr>
     <h2>Interaction</h2>
-    From request:
-    <textarea style="width: 100%">POST https://example.com/frango?subject=?</textarea>
-    or enter values
+    <textarea style="width: 100%" id="request">POST https://example.com/frango?subject=?</textarea>
+    <button onclick="parseRequest();">Parse request</button>
+    <p></p>
     
     <label>Subject: <input type="text" id="subject-server"></label>
-    <label>Public key: <input type="text" id="public-key-server"></label>
+    
     <div class="section">
     <h3>Registration</h3>
+    <label>Public key: <input type="text" id="public-key-server"></label>
     <label>Salt: <input type="text" id="salt-server"></label>
+    <label>Revocation key hash: <input type="text" id="revocation-key-hash-server"></label>
     <button onclick="registerServer();">Register</button>
     </div>
     <div class="section">
@@ -175,9 +177,10 @@ td {
     </div>
     <div class="section">
     <h3>Revocation</h3>
-    <label>Revoker: <input type="text" id="revoker-server"></label>
+    <label>Revocation key hash: <input type="text" id="old-revocation-key-hash-server"></label>
     <label>New public key: <input type="text" id="new-public-key-server"></label>
     <label>New salt: <input type="text" id="new-salt-server"></label>
+    <label>New revocation key hash: <input type="text" id="new-revocation-key-hash-server"></label>
     <button onclick="revokeServer();">Revoke</button>
     </div>
     </div>
@@ -339,7 +342,32 @@ function revoke() {
     var oldRevocationKey = revocationKey();
     register();
     var keypair = makeKeypair();
-    set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revocationkey</b>=<i>" + get("revocation-key")+ "</i>&amp;<b>salt</b>=<i>" + get("salt")+"</i>&amp;<b>pubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>&amp;<b>revocationkeyhash</b>=<i>"+ encodeBase64(nacl.hash(revocationKey())) +"</i>");
+    set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revocationkey</b>=<i>" + get("revocation-key")+ "</i>&amp;<b>newsalt</b>=<i>" + get("salt")+"</i>&amp;<b>newpubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>&amp;<b>newrevocationkeyhash</b>=<i>"+ encodeBase64(nacl.hash(revocationKey())) +"</i>");
+}
+
+function parseRequest() {
+    var match = get("request").match(/POST https:\/\/(.+?)\/frango\?(.+)/);
+    var domain = match[1];
+    var query = match[2];
+    var queryRegex = /(\w+)=([^&]+)/g;
+    var params = {};
+    while (match = queryRegex.exec(query)) {
+        params[match[1]] = match[2]
+    }
+    set("subject-server", params.subject);
+    if (params.signature) {
+        set("session-server", params.session);
+        set("signature-server", params.signature)
+    } else if (params.revocationkey) {
+        set("old-revocation-key-hash-server", params.revocationkey);
+        set("new-salt-server", params.newsalt);
+        set("new-public-key-server", params.newpubkey);
+        set("new-revocation-key-hash-server", params.newrevocationkeyhash);
+    } else {
+        set("salt-server", params.salt);
+        set("public-key-server", params.pubkey);
+        set("revocation-key-hash-server", params.revocationkeyhash);
+    }
 }
 
 window.onload = function() {
