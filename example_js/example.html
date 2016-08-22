@@ -152,8 +152,9 @@ td {
     </table>
     <h3>Sessions</h3>
     <table id="session-table">
-    <tr><td><i>Id</i></td><td><i>Subejct</i></td></tr>
+    <tr><td><i>Id</i></td><td><i>Subject</i></td></tr>
     </table>
+    <button onclick="addSession()">Add empty session</button>
     <hr>
     <h2>Interaction</h2>
     <textarea style="width: 100%" id="request">POST https://example.com/frango?subject=?</textarea>
@@ -243,9 +244,13 @@ function getRow(tableId, firstValue) {
     var table = document.getElementById(tableId);
     var rows = table.children;
     for (var i = 1; i < rows.length; i++) {
-        var row = rows[i];
-        if (row.children[0].innerHTML === firstValue) {
-            return Array.prototype.slice.call(row.children, 0);
+        var children = rows[i].children;
+        if (children[0].innerHTML === firstValue) {
+            var values = [];
+            for (var j = 0; j < children.length; j++) {
+                values.push(children[j].innerHTML);
+            }
+            return values;
         }
     }
     throw new Error("no such row found");
@@ -287,7 +292,7 @@ function updateDomain() {
 
     try {
         var row = getRow("table-salt", get("domain"));
-        set("salt", row[1].innerHTML);
+        set("salt", row[1]);
         var revocationKey = nacl.hash(nacl.hash(concat(masterKey(), concat(domain(), salt()))));
         set("revocation-key", encodeBase64(revocationKey));
         var keypair = makeKeypair();
@@ -377,6 +382,48 @@ function parseRequest() {
         set("public-key-server", params.pubkey);
         set("revocation-key-hash-server", params.revocationkeyhash);
     }
+}
+
+function registerServer() {
+    var subject = get("subject-server");
+    var publicKey = get("public-key-server");
+    var salt = get("salt-server");
+    var revocationKeyHash = get("revocation-key-hash-server");
+    try {
+        getRow("user-table", subject)
+        alert("User already registered. Please use revocation to change keys.");
+        return;
+    } catch (e) {
+    }
+    addRow("user-table", [subject, salt, publicKey, revocationKeyHash]);
+}
+
+function addSession() {
+    var id = nacl.randomBytes(32);
+    addRow("session-table", [encodeBase64(id), ""])
+}
+
+function authenticateServer() {
+    var subject = get("subject-server");
+    var publicKey;
+    try {
+        publicKey = decodeBase64(getRow("user-table", subject)[2]);
+    } catch (e) {
+        console.log(e);
+        alert("User not found. Did you register the user on the server first?")
+        return;
+    }
+
+    var id = decodeBase64(get("session-server"));
+    var signature = decodeBase64(get("signature-server"));
+    console.log(get("session-server"), get("signature-server"), getRow("user-table", subject)[2]);
+    if (nacl.sign.detached.verify(id, signature, publicKey)) {
+        alert("User authenticated successfully!");
+        changeOrAddRow("session-table", get("session-server"), [get("session-server"), subject]);
+    } else {
+        alert("Failed to verify signature. User not authenticated.")
+    }
+    
 }
 
 window.onload = function() {
