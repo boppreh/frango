@@ -360,6 +360,7 @@ function revoke() {
     register();
     var keypair = makeKeypair();
     set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revocationkey</b>=<i>" + oldRevocationKey + "</i>&amp;<b>newsalt</b>=<i>" + get("salt")+"</i>&amp;<b>newpubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>&amp;<b>newrevocationkeyhash</b>=<i>"+ encodeBase64(nacl.hash(revocationKey())) +"</i>");
+    alert("Local identity updated, please send revocation request below to server.");
 }
 
 function parseRequest() {
