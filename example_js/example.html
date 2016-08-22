@@ -165,6 +165,7 @@ td {
     
     <div class="section">
     <h3>Registration</h3>
+    Adds a new user to the Users table.
     <label>Public key: <input type="text" id="public-key-server"></label>
     <label>Salt: <input type="text" id="salt-server"></label>
     <label>Revocation key hash: <input type="text" id="revocation-key-hash-server"></label>
@@ -172,12 +173,14 @@ td {
     </div>
     <div class="section">
     <h3>Authentication</h3>
+    Associates an existing session with an user.
     <label>Session id: <input type="text" id="session-server"></label>
     <label>Signature: <input type="text" id="signature-server"></label>
     <button onclick="authenticateServer();">Authenticate</button>
     </div>
     <div class="section">
     <h3>Revocation</h3>
+    Replaces the fields of a row in the Users table.
     <label>Revocation key: <input type="text" id="revocation-key-server"></label>
     <label>New public key: <input type="text" id="new-public-key-server"></label>
     <label>New salt: <input type="text" id="new-salt-server"></label>
