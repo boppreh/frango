@@ -178,7 +178,7 @@ td {
     </div>
     <div class="section">
     <h3>Revocation</h3>
-    <label>Revocation key hash: <input type="text" id="old-revocation-key-hash-server"></label>
+    <label>Revocation key: <input type="text" id="revocation-key-server"></label>
     <label>New public key: <input type="text" id="new-public-key-server"></label>
     <label>New salt: <input type="text" id="new-salt-server"></label>
     <label>New revocation key hash: <input type="text" id="new-revocation-key-hash-server"></label>
@@ -353,10 +353,10 @@ function register() {
 
 function revoke() {
     var oldSalt = salt();
-    var oldRevocationKey = revocationKey();
+    var oldRevocationKey = get("revocation-key");
     register();
     var keypair = makeKeypair();
-    set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revocationkey</b>=<i>" + get("revocation-key")+ "</i>&amp;<b>newsalt</b>=<i>" + get("salt")+"</i>&amp;<b>newpubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>&amp;<b>newrevocationkeyhash</b>=<i>"+ encodeBase64(nacl.hash(revocationKey())) +"</i>");
+    set("revocation", "POST https://<b>" + get("domain") + "</b>/frango?<b>subject</b>=<i>" + get("subject") + "</i>&amp;<b>revocationkey</b>=<i>" + oldRevocationKey + "</i>&amp;<b>newsalt</b>=<i>" + get("salt")+"</i>&amp;<b>newpubkey</b>=<i>"+encodeBase64(keypair.publicKey)+"</i>&amp;<b>newrevocationkeyhash</b>=<i>"+ encodeBase64(nacl.hash(revocationKey())) +"</i>");
 }
 
 function parseRequest() {
@@ -369,11 +369,20 @@ function parseRequest() {
         params[match[1]] = match[2]
     }
     set("subject-server", params.subject);
+    set("session-server", "");
+    set("signature-server", "")
+    set("revocation-key-server", "");
+    set("new-salt-server", "");
+    set("new-public-key-server", "");
+    set("new-revocation-key-hash-server", "");
+    set("salt-server", "");
+    set("public-key-server", "");
+    set("revocation-key-hash-server", "");
     if (params.signature) {
         set("session-server", params.session);
         set("signature-server", params.signature)
     } else if (params.revocationkey) {
-        set("old-revocation-key-hash-server", params.revocationkey);
+        set("revocation-key-server", params.revocationkey);
         set("new-salt-server", params.newsalt);
         set("new-public-key-server", params.newpubkey);
         set("new-revocation-key-hash-server", params.newrevocationkeyhash);
@@ -411,19 +420,57 @@ function authenticateServer() {
     } catch (e) {
         console.log(e);
         alert("User not found. Did you register the user on the server first?")
-        return;
+        throw e;
     }
 
     var id = decodeBase64(get("session-server"));
     var signature = decodeBase64(get("signature-server"));
     console.log(get("session-server"), get("signature-server"), getRow("user-table", subject)[2]);
-    if (nacl.sign.detached.verify(id, signature, publicKey)) {
+    var signatureOk;
+    try {
+        signatureOk = nacl.sign.detached.verify(id, signature, publicKey)
+    } catch (e) {
+        alert(e);
+        throw e;
+    }
+    if (signatureOk) {
         alert("User authenticated successfully!");
         changeOrAddRow("session-table", get("session-server"), [get("session-server"), subject]);
     } else {
         alert("Failed to verify signature. User not authenticated.")
     }
     
+}
+
+function revokeServer() {
+    var subject = get("subject-server");
+    var revocationKey = get("revocation-key-server");
+    var newPublicKey = get("new-public-key-server");
+    var newSalt = get("new-salt-server");
+    var newRevocationKeyHash = get("new-revocation-key-hash-server");
+    var row;
+    try {
+        row = getRow("user-table", subject);
+    } catch (e) {
+        alert("No such user/subject.");
+        throw e;
+    }
+
+    var hashOk;
+    console.log(encodeBase64(nacl.hash(decodeBase64(revocationKey))));
+    console.log(row[3]);
+    try {
+        hashOk = nacl.verify(nacl.hash(decodeBase64(revocationKey)), decodeBase64(row[3]));
+    } catch(e) {
+        alert(e);
+        throw e;
+    }
+    if (hashOk) {
+        changeOrAddRow("user-table", subject, [subject, newSalt, newPublicKey, newRevocationKeyHash]);
+        alert("User identity revoked and changed successfully.");
+    } else {
+        alert("Revocation key doesn't match.");
+    }
 }
 
 window.onload = function() {
